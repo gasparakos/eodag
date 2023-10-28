@@ -69,10 +69,12 @@ class KeycloakOIDCPasswordAuth(Authentication):
     """
 
     GRANT_TYPE = "password"
+    GRANT_TYPE_REFRESH = "refresh_token"
     TOKEN_URL_TEMPLATE = "{auth_base_uri}/realms/{realm}/protocol/openid-connect/token"
     REQUIRED_PARAMS = ["auth_base_uri", "client_id", "client_secret", "token_provision"]
     # already retrieved token store, to be used if authenticate() fails (OTP use-case)
     retrieved_token: Optional[str] = None
+    refresh_token: Optional[str] = None
 
     def __init__(self, provider, config):
         super(KeycloakOIDCPasswordAuth, self).__init__(provider, config)
@@ -90,6 +92,49 @@ class KeycloakOIDCPasswordAuth(Authentication):
                 )
 
     def authenticate(self):
+        """
+        Makes authentication request
+        """
+        if self.refresh_token:
+            req_data_refresh = {
+                "client_id": self.config.client_id,
+                "client_secret": self.config.client_secret,
+                "grant_type": self.GRANT_TYPE_REFRESH,
+            }
+            try:
+                response = self.session.post(
+                    self.TOKEN_URL_TEMPLATE.format(
+                        auth_base_uri=self.config.auth_base_uri.rstrip("/"),
+                        realm=self.config.realm,
+                    ),
+                    data=req_data_refresh | {'refresh_token': self.refresh_token},
+                    headers=USER_AGENT,
+                    timeout=HTTP_REQ_TIMEOUT,
+                )
+                response.raise_for_status()
+            except requests.RequestException as e:
+                breakpoint()
+                response_text = getattr(e.response, "text", "").strip()
+                detail = response.json()["detail"]
+                if response.json()["detail"]:
+                    logger.info(
+                        f"Provider {self.provider} returned {e.response.status_code}: {response_text}"
+                    )
+                    logger.info(
+                        f"Provider {self.provider} refresh token expired"
+                    )
+            else:
+                self.retrieved_token = response.json()["access_token"]
+                self.refresh_token = response.json()["refresh_token"]
+                return CodeAuthorizedAuth(
+                    self.retrieved_token,
+                    self.config.token_provision,
+                    key=getattr(self.config, "token_qs_key", None),
+                )
+
+        return self.authenticate_first()
+
+    def authenticate_first(self):
         """
         Makes authentication request
         """
@@ -146,8 +191,10 @@ class KeycloakOIDCPasswordAuth(Authentication):
                 )
 
         self.retrieved_token = response.json()["access_token"]
+        self.refresh_token = response.json()["refresh_token"]
         return CodeAuthorizedAuth(
             self.retrieved_token,
             self.config.token_provision,
             key=getattr(self.config, "token_qs_key", None),
         )
+
