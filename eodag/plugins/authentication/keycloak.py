@@ -113,7 +113,6 @@ class KeycloakOIDCPasswordAuth(Authentication):
                 )
                 response.raise_for_status()
             except requests.RequestException as e:
-                breakpoint()
                 response_text = getattr(e.response, "text", "").strip()
                 """
                 Captured one response_text: {"error":"invalid_grant","error_description":"Token is not active"}
