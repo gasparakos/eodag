@@ -115,14 +115,16 @@ class KeycloakOIDCPasswordAuth(Authentication):
             except requests.RequestException as e:
                 breakpoint()
                 response_text = getattr(e.response, "text", "").strip()
-                detail = response.json()["detail"]
-                if response.json()["detail"]:
-                    logger.info(
-                        f"Provider {self.provider} returned {e.response.status_code}: {response_text}"
-                    )
-                    logger.info(
-                        f"Provider {self.provider} refresh token expired"
-                    )
+                """
+                Captured one response_text: {"error":"invalid_grant","error_description":"Token is not active"}
+                How to handle?
+                """
+                logger.info(
+                    f"Provider {self.provider} returned {e.response.status_code}: {response_text}"
+                )
+                logger.info(
+                    f"Provider {self.provider} refresh token expired"
+                )
             else:
                 self.retrieved_token = response.json()["access_token"]
                 self.refresh_token = response.json()["refresh_token"]
