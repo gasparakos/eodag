@@ -115,7 +115,9 @@ class KeycloakOIDCPasswordAuth(Authentication):
             except requests.RequestException as e:
                 response_text = getattr(e.response, "text", "").strip()
                 """
-                Captured one response_text: {"error":"invalid_grant","error_description":"Token is not active"}
+                Captured one response_text:
+                    {"error":"invalid_grant","error_description":"Token is not active"}
+                    {"error":"invalid_grant","error_description":"Session not active"}
                 How to handle?
                 """
                 logger.info(
